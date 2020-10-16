@@ -46,21 +46,27 @@ if opts.useL == -1
   opts.useL = 0;
   opts.noalpha = 1;
 end
+if opts.useL == 2
+  opts.useL = 1;
+  opts.noalpha = 1;
+end
 
 % fix some options
 if opts.useL == 1, opts.diagsig = 0; end
+if opts.useL == 2, opts.diagsig = 0; end
 if opts.S20  <= 0, opts.S20 = opts.sig.^2; end
 
 n = size(x,1);
 
-if opts.useL
+if opts.useL > 0
 
   dist = makedistmat(xcoord,ycoord);
   [cmat,L] = makecovmat2(dist,opts.tau2,opts.sig2,opts.phi,opts.covmodel);
 
   L0 = chol(cmat,'lower');
 
-  lam = 10;lam = 2;lam = 1;
+  %lam = 10; lam = 2; lam = 1;
+  lam = 1;
   L = L0 / lam;
   opts.sig = 1;
   ssold = Inf;
@@ -94,10 +100,14 @@ end
 
 p = size(x,2)-1; % length of beta - 1
 
-if opts.useL==1
+if opts.useL==1 && not(opts.noalpha)  % L = 1
   npar = p + 6;
-else
+elseif opts.useL == 0 && not(opts.noalpha) % L = 0
   npar = p + 4;
+elseif opts.useL == 1 && opts.noalpha % L = 2
+  npar = p + 4;
+elseif opts.useL == 0 && opts.noalpha  % L = -1
+  npar = p+2;
 end
 
 % generate names
@@ -105,14 +115,18 @@ names{1} = 'intercept';
 for i = 2:p+1 %
   names{i} = sprintf('\\beta_{%d}',i-1);
 end
-names{i+1} = '\sigma_{0}';     % save results as stds
+ii = p+1;
+if not(opts.noalpha)
+names{i+1} = '\sigma_{0}';     % PCA/SVD parameters
 names{i+2} = '\sigma_{\beta}';
-if opts.diagsig
-  names{i+3} = '\sigma_Y';
-else
-  names{i+3} = '\tau^2';
-  names{i+4} = '\sigma^2';
-  names{i+5} = '\phi';
+ii = ii+2;
+end
+if opts.diagsig % if diagonal error covariance matrix
+  names{ii+1} = '\sigma_Y';
+else % if spat. error covariance matrix
+  names{ii+1} = '\tau^2';
+  names{ii+2} = '\sigma^2';
+  names{ii+3} = '\phi';
 end
 
 chain = zeros(opts.nsimu,npar);
@@ -132,8 +146,8 @@ nacce = 1;
 for isimu = 1:opts.nsimu
 
   % beta|alpha
-  if opts.useL
-    if opts.noalpha     % no alpha
+  if opts.useL > 0
+    if opts.noalpha     % no alpha / truncated PCA
       ttt = L\x/sig;
       mu = ttt\[L\y/sig];
     else
@@ -142,7 +156,7 @@ for isimu = 1:opts.nsimu
     end
   else
     % no L
-    if opts.noalpha     % no alpha
+    if opts.noalpha     % no alpha / truncated PCA
       ttt = x/sig;
       mu = ttt\[y/sig];
     else
@@ -153,6 +167,7 @@ for isimu = 1:opts.nsimu
 
   Sigi = ttt'*ttt;
   beta = mvnorr(1,mu,Sigi,inv(chol(Sigi)));
+  if isimu == 1 betaold = beta; end
 
   chain(isimu,1) = beta(1);
   chain(isimu,2:length(beta)) = (beta(2:end)')';
@@ -177,7 +192,7 @@ for isimu = 1:opts.nsimu
     sig = sqrt(1./gammar(1,1,(opts.N0+n)/2,2./(opts.N0*opts.S20+ss)));
     chain(isimu,end) = sig;
 
-  elseif opts.useL == 1
+  elseif opts.useL > 0 %== 1
     % three spatial parameters
     if opts.invphi == 1
       parold(3) = 1/parold(3);
@@ -193,7 +208,7 @@ for isimu = 1:opts.nsimu
       parold(3) = 1/parold(3);
     end
     Lnew = covcholfun(parnew);
-    ssold = norm(L\(y-x*beta')).^2 + 2*sum(log(diag(L)));
+    ssold = norm(L\(y-x*betaold')).^2 + 2*sum(log(diag(L)));
     ssnew = norm(Lnew\(y-x*beta')).^2 + 2*sum(log(diag(Lnew)));
     tst = exp(-0.5*(ssnew-ssold + prinew-priold));
 
@@ -206,6 +221,7 @@ for isimu = 1:opts.nsimu
       ssold = ssnew;
       parold = parnew;
       priold = prinew;
+      betaold = beta;
       L = Lnew;
       nacce = nacce + 1;
     end
@@ -256,21 +272,29 @@ if opts.FIG
   ylabel('t'); xlabel('\beta index')
 
 end
+if opts.useL == -1 res.class = 'mcmc';
+elseif opts.useL == 0 res.class = 'mcmct';
+elseif opts.useL == 1 res.class = 'spmcmct';
+elseif opts.useL == 2 res.class = 'spmcmc';
+end
 
-res.class = 'spmcmc';
 res.nsimu = size(chain,1);
 res.acce = nacce/opts.nsimu;
 res.names = names;
-if opts.useL
+if opts.useL > 0
   res.priorfun = priorfun;
   res.covcholfun = covcholfun;
 end
-res.alphaind = (p+2):(p+3);
 res.betaind = 1:(p+1);
-if opts.useL == 1
-  res.thetaind = (p+4):(p+6);
+ii = p+1;
+if not(opts.noalpha)
+    res.alphaind = (p+2):(p+3);
+    ii = ii+2;
+end
+if opts.useL > 0
+  res.thetaind = (ii+1):(ii+3);
 else
-  res.thetaind = [];
+  res.thetaind = ii+1;%[];
 end
 res.xcoord = xcoord;
 res.ycoord = ycoord;

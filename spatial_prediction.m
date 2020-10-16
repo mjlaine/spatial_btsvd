@@ -20,11 +20,15 @@ for isimu=1:nsimu
     m = chain(ceil(rand*size(chain,1)),:);
   end
 
-  alpha = m(results.alphaind)';
+  if not(results.opts.noalpha)
+    alpha = m(results.alphaind)';
+  end
   beta  = m(results.betaind)';
-  theta = m(results.thetaind)';
-
-  if results.opts.useL == 0
+  if results.opts.useL > 0
+    theta = m(results.thetaind)';
+  end
+  
+  if results.opts.useL <= 0
     sig = m(end); % obs sig
     ynew = beta(1) + xnew*beta(2:end);
     ynew = ynew + randn(1,1)*sig;
@@ -41,6 +45,7 @@ for isimu=1:nsimu
     end
 
     yhat = results.x*beta;
+
     % for the original data
     cmat = makecovmat2(dist(1:nobs-1,1:nobs-1),tau2,sig2,phi,results.opts.covmodel);
     L = chol(cmat,'lower');
@@ -49,16 +54,17 @@ for isimu=1:nsimu
     % here not (should we add nugget when in observation location?)
 %    cmat2 = makecovmat2(dist,tau2,sig2,phi,results.opts.covmodel);
     cnew = cmat2(1:end-1,end);
-    cnew = cnew + (dist(1:end-1,end)==0)*tau2;
+%    cnew = cnew + (dist(1:end-1,end)==0)*tau2;
     cnew = bs(L,cnew)'; % scale by cmat, cnew = cnew'*cmat^(-1/2)
-
+   
     ynew = beta(1) + xnew*beta(2:end) + cnew*bs(L,results.y-yhat);
     
-    % need to calculate the kriging variance ?
+    % need to calculate kriging variance ?
 %    xt = bs(L,results.x);
 %    dx = [1,xnew]-cnew*xt;
+%%    tau22 = cnew*cnew' - dx*(xt\(dx/xt)');
 %    tau22 = cnew*cnew' - dx*((xt'*xt)\dx');
-%
+
 %    or do we need only the first term, as we already account for beta unc?
     tau22 = cnew*cnew';
     tau20 = sig2 + tau2;
@@ -67,6 +73,7 @@ for isimu=1:nsimu
 %    cnew2 = cmat2(1:end-1,end);
 %    dx = [1,xnew] - cnew2'*(cmat\results.x);
 %    tau22 = cnew2'*(cmat\cnew2) - dx*((results.x'*(cmat\results.x))\dx');
+%keyboard
     
 if tau20 - tau22 < -1.0e-13
   warning('something wrong with Kriging variance, please debug')
