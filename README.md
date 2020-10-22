@@ -11,7 +11,7 @@ The code estimates a linear random effect model y = Xβ + η + ε, where we have
 The main functions provided here are
 
 ```
-[res,chain,sschain] = spatial_mcmcrun(x,y,xcoord,ycoord,uopts)
+[results,chain,sschain] = spatial_mcmcrun(x,y,xcoord,ycoord,opts)
 ```
 
 for MCMC analysis of the model parameters,
@@ -23,7 +23,7 @@ out=spatial_prediction(results,chain,xnew,xcoordnew,ycoordnew,nsimu)
 for predicting the output at new spatial locations,
 
 ```
-spatial_mcmcplot(chain,res,type,varargin)
+spatial_mcmcplot(chain,results,type,varargin)
 ```
 
 for plotting various MCMC chain plots, and
@@ -44,7 +44,7 @@ You can test the code with the following two scripts:
 `analyzesynt.m`: calculate predictions by different methods.
 
 The test code uses some auxiliary Matlab functions. Some statistical distributions from the MCMCSTAT toolbox, which is available from GitHub at
-https://www.github.com/mjlaine/rstools, and
+<https://www.github.com/mjlaine/mcmcstat>, and
 some linear regression routines from the RSTOOLS toolbox, available at
-https://www.github.com/mjlaine/mcmcstat .
+<https://www.github.com/mjlaine/rstools> .
 
